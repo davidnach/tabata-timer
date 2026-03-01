@@ -1,4 +1,4 @@
-const CACHE_NAME = 'tabata-v5';
+const CACHE_NAME = 'tabata-v6';
 const FILES = [
   './index.html',
   './manifest.json',
