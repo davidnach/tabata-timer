@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Tabata">
+  <meta name="theme-color" content="#1a1a2e">
+  <link rel="manifest" href="manifest.json">
+  <title>Tabata Timer</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; touch-action: manipulation; }
+
+    :root {
+      --bg: #1a1a2e;
+      --work: #ff6b35;
+      --rest: #4a90d9;
+      --ready: #4caf50;
+      --done: #888;
+      --phase-color: var(--ready);
+    }
+
+    html, body {
+      height: 100%;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: #fff;
+      overflow: hidden;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    /* ── SCREENS ── */
+    .screen {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      padding: env(safe-area-inset-top) env(safe-area-inset-right)
+               env(safe-area-inset-bottom) env(safe-area-inset-left);
+      padding-top: max(env(safe-area-inset-top), 20px);
+      padding-bottom: max(env(safe-area-inset-bottom), 20px);
+    }
+    .screen.active { display: flex; }
+
+    /* ── SETUP SCREEN ── */
+    #setup { gap: 28px; }
+
+    h1 {
+      font-size: 2rem;
+      font-weight: 800;
+      letter-spacing: 2px;
+      color: var(--work);
+    }
+
+    .config-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      width: 100%;
+      max-width: 340px;
+    }
+
+    .config-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: rgba(255,255,255,0.06);
+      border-radius: 16px;
+      padding: 16px 20px;
+    }
+
+    .config-label {
+      font-size: 1rem;
+      font-weight: 600;
+      color: #ccc;
+    }
+
+    .config-controls {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .stepper-btn {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      border: none;
+      background: rgba(255,255,255,0.12);
+      color: #fff;
+      font-size: 1.4rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      -webkit-tap-highlight-color: transparent;
+      transition: background 0.15s;
+    }
+    .stepper-btn:active { background: rgba(255,255,255,0.25); }
+
+    .config-value {
+      font-size: 1.5rem;
+      font-weight: 700;
+      min-width: 52px;
+      text-align: center;
+    }
+
+    .config-unit {
+      font-size: 0.8rem;
+      color: #888;
+      min-width: 30px;
+    }
+
+    .summary {
+      font-size: 0.9rem;
+      color: #888;
+      text-align: center;
+    }
+
+    #start-btn {
+      padding: 18px 60px;
+      font-size: 1.3rem;
+      font-weight: 700;
+      border: none;
+      border-radius: 50px;
+      background: var(--work);
+      color: #fff;
+      cursor: pointer;
+      letter-spacing: 1px;
+      -webkit-tap-highlight-color: transparent;
+      transition: transform 0.1s, opacity 0.1s;
+    }
+    #start-btn:active { transform: scale(0.96); opacity: 0.85; }
+
+    /* ── TIMER SCREEN ── */
+    #timer {
+      gap: 0;
+      position: relative;
+      background: var(--phase-color);
+      transition: background 0.4s ease;
+    }
+
+    #phase-label {
+      font-size: 1.5rem;
+      font-weight: 800;
+      letter-spacing: 4px;
+      text-transform: uppercase;
+      opacity: 0.9;
+      margin-bottom: 8px;
+    }
+
+    #round-label {
+      font-size: 1.1rem;
+      font-weight: 600;
+      opacity: 0.75;
+      margin-bottom: 32px;
+    }
+
+    #countdown {
+      font-size: clamp(100px, 35vw, 180px);
+      font-weight: 900;
+      line-height: 1;
+      letter-spacing: -4px;
+      text-shadow: 0 4px 20px rgba(0,0,0,0.3);
+      margin-bottom: 40px;
+    }
+
+    /* progress bar */
+    #progress-wrap {
+      width: 80%;
+      max-width: 320px;
+      height: 8px;
+      background: rgba(0,0,0,0.25);
+      border-radius: 4px;
+      overflow: hidden;
+      margin-bottom: 48px;
+    }
+    #progress-bar {
+      height: 100%;
+      background: rgba(255,255,255,0.7);
+      border-radius: 4px;
+      transition: width 0.5s linear;
+      width: 0%;
+    }
+
+    /* timer controls */
+    .timer-controls {
+      display: flex;
+      gap: 20px;
+    }
+
+    .ctrl-btn {
+      width: 70px;
+      height: 70px;
+      border-radius: 50%;
+      border: 3px solid rgba(255,255,255,0.4);
+      background: rgba(0,0,0,0.2);
+      color: #fff;
+      font-size: 1.6rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      -webkit-tap-highlight-color: transparent;
+      transition: background 0.15s;
+    }
+    .ctrl-btn:active { background: rgba(0,0,0,0.4); }
+
+    /* done state */
+    #done-msg {
+      display: none;
+      font-size: 2.5rem;
+      font-weight: 900;
+      letter-spacing: 2px;
+      text-align: center;
+    }
+    #done-msg.visible { display: block; }
+  </style>
+</head>
+<body>
+
+<!-- ── SETUP SCREEN ── -->
+<div id="setup" class="screen active">
+  <h1>TABATA</h1>
+
+  <div class="config-grid">
+    <div class="config-row">
+      <span class="config-label">Work</span>
+      <div class="config-controls">
+        <button class="stepper-btn" data-target="work" data-delta="-1">−</button>
+        <span class="config-value" id="work-val">20</span>
+        <button class="stepper-btn" data-target="work" data-delta="1">+</button>
+      </div>
+      <span class="config-unit">sec</span>
+    </div>
+
+    <div class="config-row">
+      <span class="config-label">Rest</span>
+      <div class="config-controls">
+        <button class="stepper-btn" data-target="rest" data-delta="-1">−</button>
+        <span class="config-value" id="rest-val">10</span>
+        <button class="stepper-btn" data-target="rest" data-delta="1">+</button>
+      </div>
+      <span class="config-unit">sec</span>
+    </div>
+
+    <div class="config-row">
+      <span class="config-label">Rounds</span>
+      <div class="config-controls">
+        <button class="stepper-btn" data-target="rounds" data-delta="-1">−</button>
+        <span class="config-value" id="rounds-val">8</span>
+        <button class="stepper-btn" data-target="rounds" data-delta="1">+</button>
+      </div>
+      <span class="config-unit"></span>
+    </div>
+  </div>
+
+  <p class="summary" id="summary-text"></p>
+  <button id="start-btn">START</button>
+</div>
+
+<!-- ── TIMER SCREEN ── -->
+<div id="timer" class="screen">
+  <div id="phase-label">GET READY</div>
+  <div id="round-label">Round 1 / 8</div>
+  <div id="countdown">3</div>
+  <div id="done-msg">DONE!</div>
+  <div id="progress-wrap">
+    <div id="progress-bar"></div>
+  </div>
+  <div class="timer-controls">
+    <button class="ctrl-btn" id="pause-btn">⏸</button>
+    <button class="ctrl-btn" id="stop-btn">✕</button>
+  </div>
+</div>
+
+<script>
+// ── CONFIG ──────────────────────────────────────────────────
+const DEFAULTS = { work: 20, rest: 10, rounds: 8 };
+const config = { ...DEFAULTS };
+
+function loadConfig() {
+  try {
+    const saved = JSON.parse(localStorage.getItem('tabata-config') || '{}');
+    for (const k of ['work', 'rest', 'rounds']) {
+      if (typeof saved[k] === 'number' && saved[k] >= 1) config[k] = saved[k];
+    }
+  } catch (_) {}
+}
+
+function saveConfig() {
+  localStorage.setItem('tabata-config', JSON.stringify(config));
+}
+
+function updateDisplay() {
+  document.getElementById('work-val').textContent = config.work;
+  document.getElementById('rest-val').textContent = config.rest;
+  document.getElementById('rounds-val').textContent = config.rounds;
+  const total = (config.work + config.rest) * config.rounds;
+  const mins = Math.floor(total / 60);
+  const secs = total % 60;
+  document.getElementById('summary-text').textContent =
+    `Total: ${mins > 0 ? mins + 'm ' : ''}${secs > 0 ? secs + 's' : ''}`;
+}
+
+// ── SETUP CONTROLS ───────────────────────────────────────────
+loadConfig();
+updateDisplay();
+
+document.querySelectorAll('.stepper-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const key = btn.dataset.target;
+    const delta = parseInt(btn.dataset.delta);
+    config[key] = Math.max(1, config[key] + delta);
+    saveConfig();
+    updateDisplay();
+  });
+});
+
+// ── AUDIO ────────────────────────────────────────────────────
+let audioCtx = null;
+
+function getAudioCtx() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return audioCtx;
+}
+
+function unlockAudio() {
+  const ctx = getAudioCtx();
+  ctx.resume(); // synchronous call — iOS grants unlock here, before any await
+  const buf = ctx.createBuffer(1, 1, ctx.sampleRate);
+  const src = ctx.createBufferSource();
+  src.buffer = buf;
+  src.connect(ctx.destination);
+  src.start(0);
+}
+
+function beep(freq, duration, delay = 0, type = 'sine', gain = 0.7) {
+  try {
+    const ctx = getAudioCtx();
+    const osc = ctx.createOscillator();
+    const vol = ctx.createGain();
+    osc.connect(vol);
+    vol.connect(ctx.destination);
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, ctx.currentTime + delay);
+    vol.gain.setValueAtTime(0, ctx.currentTime + delay);
+    vol.gain.linearRampToValueAtTime(gain, ctx.currentTime + delay + 0.01);
+    vol.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay + duration);
+    osc.start(ctx.currentTime + delay);
+    osc.stop(ctx.currentTime + delay + duration + 0.05);
+  } catch (_) {}
+}
+
+function playWorkStart() {
+  beep(660, 0.12, 0);
+  beep(880, 0.12, 0.15);
+  beep(1100, 0.18, 0.30);
+}
+
+function playRestStart() {
+  beep(660, 0.14, 0);
+  beep(440, 0.20, 0.18);
+}
+
+function playCountdownBeep() {
+  beep(880, 0.10, 0, 'square', 0.3);
+}
+
+function playDone() {
+  beep(523, 0.15, 0);
+  beep(659, 0.15, 0.18);
+  beep(784, 0.15, 0.36);
+  beep(1047, 0.5, 0.54);
+}
+
+// ── VIBRATION ────────────────────────────────────────────────
+function vibrate(pattern) {
+  try { navigator.vibrate && navigator.vibrate(pattern); } catch (_) {}
+}
+
+// ── WAKE LOCK ────────────────────────────────────────────────
+let wakeLock = null;
+
+async function acquireWakeLock() {
+  try {
+    if ('wakeLock' in navigator) {
+      wakeLock = await navigator.wakeLock.request('screen');
+    }
+  } catch (_) {}
+}
+
+function releaseWakeLock() {
+  try { wakeLock && wakeLock.release(); } catch (_) {}
+  wakeLock = null;
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && timerRunning && !paused) {
+    acquireWakeLock();
+  }
+});
+
+// ── TIMER STATE ───────────────────────────────────────────────
+let timerRunning = false;
+let paused = false;
+let intervalId = null;
+
+let phase = 'ready'; // 'ready' | 'work' | 'rest' | 'done'
+let currentRound = 1;
+let secondsLeft = 3;
+let totalDuration = 0;
+let elapsedTotal = 0;
+let tickStart = null;
+let pausedAt = null;
+
+const PHASE_COLORS = {
+  ready: 'var(--ready)',
+  work:  'var(--work)',
+  rest:  'var(--rest)',
+  done:  'var(--done)'
+};
+
+const timerEl    = document.getElementById('timer');
+const phaseEl    = document.getElementById('phase-label');
+const roundEl    = document.getElementById('round-label');
+const countEl    = document.getElementById('countdown');
+const doneEl     = document.getElementById('done-msg');
+const progressEl = document.getElementById('progress-bar');
+const pauseBtn   = document.getElementById('pause-btn');
+
+function setPhaseColor(p) {
+  timerEl.style.background = PHASE_COLORS[p] || PHASE_COLORS.done;
+}
+
+function renderTimer() {
+  const labels = { ready: 'GET READY', work: 'WORK', rest: 'REST', done: 'DONE' };
+  phaseEl.textContent = labels[phase] || '';
+  countEl.textContent = phase === 'done' ? '' : secondsLeft;
+  countEl.style.display = phase === 'done' ? 'none' : 'block';
+  doneEl.classList.toggle('visible', phase === 'done');
+
+  if (phase === 'done') {
+    roundEl.textContent = '';
+  } else if (phase === 'ready') {
+    roundEl.textContent = `Round 1 / ${config.rounds}`;
+  } else {
+    roundEl.textContent = `Round ${currentRound} / ${config.rounds}`;
+  }
+
+  const pct = totalDuration > 0 ? Math.min(100, (elapsedTotal / totalDuration) * 100) : 0;
+  progressEl.style.width = pct + '%';
+}
+
+function startPhase(p) {
+  phase = p;
+  setPhaseColor(p);
+
+  if (p === 'ready') {
+    secondsLeft = 3;
+    elapsedTotal = 0;
+  } else if (p === 'work') {
+    secondsLeft = config.work;
+    vibrate(200);
+    playWorkStart();
+  } else if (p === 'rest') {
+    secondsLeft = config.rest;
+    vibrate(200);
+    playRestStart();
+  } else if (p === 'done') {
+    secondsLeft = 0;
+    vibrate([100, 50, 100]);
+    playDone();
+    releaseWakeLock();
+  }
+  renderTimer();
+}
+
+function tick() {
+  if (paused) return;
+
+  // Drift correction
+  const now = Date.now();
+  const expected = tickStart + 1000;
+  const drift = now - expected;
+  tickStart = now - drift;
+
+  if (phase !== 'done') {
+    secondsLeft--;
+    if (phase !== 'ready') elapsedTotal++;
+
+    // Last 3 seconds countdown beep
+    if (secondsLeft <= 3 && secondsLeft > 0 && phase !== 'done') {
+      playCountdownBeep();
+    }
+  }
+
+  if (secondsLeft <= 0) {
+    advancePhase();
+  } else {
+    renderTimer();
+  }
+}
+
+function advancePhase() {
+  if (phase === 'ready') {
+    currentRound = 1;
+    startPhase('work');
+  } else if (phase === 'work') {
+    startPhase('rest');
+  } else if (phase === 'rest') {
+    if (currentRound < config.rounds) {
+      currentRound++;
+      startPhase('work');
+    } else {
+      stopInterval();
+      timerRunning = false;
+      startPhase('done');
+    }
+  }
+}
+
+function startInterval() {
+  tickStart = Date.now();
+  intervalId = setInterval(tick, 1000);
+}
+
+function stopInterval() {
+  clearInterval(intervalId);
+  intervalId = null;
+}
+
+// ── SCREEN NAVIGATION ─────────────────────────────────────────
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+document.getElementById('start-btn').addEventListener('click', () => {
+  unlockAudio();
+  beep(660, 0.3, 0); // immediate audible test tone on tap
+
+  totalDuration = (config.work + config.rest) * config.rounds;
+  currentRound = 1;
+  elapsedTotal = 0;
+  paused = false;
+  timerRunning = true;
+
+  showScreen('timer');
+  acquireWakeLock();
+  startPhase('ready');
+  startInterval();
+});
+
+pauseBtn.addEventListener('click', () => {
+  if (phase === 'done') return;
+
+  if (!paused) {
+    paused = true;
+    pauseBtn.textContent = '▶';
+    stopInterval();
+    releaseWakeLock();
+  } else {
+    paused = false;
+    pauseBtn.textContent = '⏸';
+    startInterval();
+    acquireWakeLock();
+  }
+});
+
+document.getElementById('stop-btn').addEventListener('click', () => {
+  stopInterval();
+  releaseWakeLock();
+  timerRunning = false;
+  paused = false;
+  pauseBtn.textContent = '⏸';
+  showScreen('setup');
+  updateDisplay();
+});
+
+// ── SERVICE WORKER ────────────────────────────────────────────
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js').catch(() => {});
+  });
+}
+</script>
+</body>
+</html>
